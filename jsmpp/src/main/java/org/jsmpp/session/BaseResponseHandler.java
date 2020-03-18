@@ -15,6 +15,7 @@
 package org.jsmpp.session;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 
 import org.jsmpp.bean.Command;
 import org.jsmpp.bean.DataSm;
@@ -40,6 +41,7 @@ public interface BaseResponseHandler {
      *         sequenceNumber not found
      */
     PendingResponse<Command> removeSentItem(int sequenceNumber);
+	CompletableFuture<Command> removeSentItemAsync(int sequenceNumber);
     
     /**
      * Response by sending <b>GENERICK_NACK</b>.

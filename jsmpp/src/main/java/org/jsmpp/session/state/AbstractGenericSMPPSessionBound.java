@@ -15,6 +15,7 @@
 package org.jsmpp.session.state;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 
 import org.jsmpp.GenericNackResponseException;
 import org.jsmpp.PDUStringException;
@@ -91,6 +92,7 @@ abstract class AbstractGenericSMPPSessionBound implements GenericSMPPSessionStat
             BaseResponseHandler responseHandler) throws IOException {
         PendingResponse<Command> pendingResp = responseHandler
                 .removeSentItem(pduHeader.getSequenceNumber());
+	    CompletableFuture<Command> future;
         if (pendingResp != null) {
             pendingResp.doneWithInvalidResponse(new GenericNackResponseException(
                     "Receive generic_nack with command_status "
@@ -99,6 +101,14 @@ abstract class AbstractGenericSMPPSessionBound implements GenericSMPPSessionStat
                     + "command_status=" + pduHeader.getCommandStatusAsHex()
                     + ", sequence_number="
                     + IntUtil.toHexString(pduHeader.getSequenceNumber()));
+        } else if ((future = responseHandler.removeSentItemAsync(pduHeader.getSequenceNumber())) != null) {
+        	future.completeExceptionally(new GenericNackResponseException(
+			        "Receive generic_nack with command_status "
+					        + pduHeader.getCommandStatusAsHex(), pduHeader.getCommandStatus()));
+	        logger.error("Receive generick_nack. "
+			        + "command_status=" + pduHeader.getCommandStatusAsHex()
+			        + ", sequence_number="
+			        + IntUtil.toHexString(pduHeader.getSequenceNumber()));
         }
     }
     

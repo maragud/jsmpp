@@ -15,6 +15,7 @@
 package org.jsmpp.session.state;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 
 import org.jsmpp.PDUStringException;
 import org.jsmpp.SMPPConstant;
@@ -53,6 +54,7 @@ class SMPPSessionBoundTX extends SMPPSessionBound implements SMPPSessionState {
 
         PendingResponse<Command> pendingResp = responseHandler
                 .removeSentItem(pduHeader.getSequenceNumber());
+	    CompletableFuture<Command> future;
         if (pendingResp != null) {
             try {
                 SubmitSmResp resp = pduDecomposer.submitSmResp(pdu);
@@ -62,6 +64,15 @@ class SMPPSessionBoundTX extends SMPPSessionBound implements SMPPSessionState {
                 responseHandler.sendGenerickNack(e.getErrorCode(), pduHeader
                         .getSequenceNumber());
             }
+        } else if ((future = responseHandler.removeSentItemAsync(pduHeader.getSequenceNumber())) != null) {
+	        try {
+		        SubmitSmResp resp = pduDecomposer.submitSmResp(pdu);
+		        future.complete(resp);
+	        } catch (PDUStringException e) {
+		        logger.error("Failed decomposing submit_sm_resp", e);
+		        responseHandler.sendGenerickNack(e.getErrorCode(), pduHeader
+				        .getSequenceNumber());
+	        }
         } else {
             logger.warn("No request with sequence_number "
                     + pduHeader.getSequenceNumber() + " found");

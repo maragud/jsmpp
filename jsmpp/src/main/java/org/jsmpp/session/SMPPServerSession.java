@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
@@ -298,6 +299,9 @@ public class SMPPServerSession extends AbstractSession implements ServerSession 
         public PendingResponse<Command> removeSentItem(int sequenceNumber) {
             return removePendingResponse(sequenceNumber);
         }
+	    public CompletableFuture<Command> removeSentItemAsync(int sequenceNumber) {
+		    return removePendingResponseAsync(sequenceNumber);
+	    }
         
         public void notifyUnbonded() {
             sessionContext.unbound();

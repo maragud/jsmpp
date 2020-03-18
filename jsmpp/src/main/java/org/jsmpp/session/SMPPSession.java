@@ -18,10 +18,7 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.SocketTimeoutException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 import org.jsmpp.DefaultPDUReader;
 import org.jsmpp.DefaultPDUSender;
@@ -334,6 +331,28 @@ public class SMPPSession extends AbstractSession implements ClientSession {
         SubmitSmResp resp = (SubmitSmResp)executeSendCommand(submitSmTask, getTransactionTimer());
     	return resp.getMessageId();
     }
+	public CompletableFuture<SubmitSmResp> submitShortMessageAsync(String serviceType,
+            TypeOfNumber sourceAddrTon, NumberingPlanIndicator sourceAddrNpi,
+            String sourceAddr, TypeOfNumber destAddrTon,
+            NumberingPlanIndicator destAddrNpi, String destinationAddr,
+            ESMClass esmClass, byte protocolId, byte priorityFlag,
+            String scheduleDeliveryTime, String validityPeriod,
+            RegisteredDelivery registeredDelivery, byte replaceIfPresentFlag,
+            DataCoding dataCoding, byte smDefaultMsgId, byte[] shortMessage,
+            OptionalParameter... optionalParameters) throws PDUException, IOException {
+
+		ensureTransmittable("submitShortMessage");
+
+		SubmitSmCommandTask submitSmTask = new SubmitSmCommandTask(
+				pduSender(), serviceType, sourceAddrTon, sourceAddrNpi,
+				sourceAddr, destAddrTon, destAddrNpi, destinationAddr,
+				esmClass, protocolId, priorityFlag, scheduleDeliveryTime,
+				validityPeriod, registeredDelivery, replaceIfPresentFlag,
+				dataCoding, smDefaultMsgId, shortMessage, optionalParameters);
+
+		return executeSendCommandAsync(submitSmTask, getTransactionTimer())
+			.thenApply(SubmitSmResp.class::cast);
+	}
     
     /* (non-Javadoc)
      * @see org.jsmpp.session.ClientSession#submitMultiple(java.lang.String, org.jsmpp.bean.TypeOfNumber, org.jsmpp.bean.NumberingPlanIndicator, java.lang.String, org.jsmpp.bean.Address[], org.jsmpp.bean.ESMClass, byte, byte, java.lang.String, java.lang.String, org.jsmpp.bean.RegisteredDelivery, org.jsmpp.bean.ReplaceIfPresentFlag, org.jsmpp.bean.DataCoding, byte, byte[], org.jsmpp.bean.OptionalParameter[])
@@ -531,6 +550,9 @@ public class SMPPSession extends AbstractSession implements ClientSession {
 		
 		public PendingResponse<Command> removeSentItem(int sequenceNumber) {
 			return removePendingResponse(sequenceNumber);
+		}
+		public CompletableFuture<Command> removeSentItemAsync(int sequenceNumber) {
+			return removePendingResponseAsync(sequenceNumber);
 		}
 		
 		public void notifyUnbonded() {

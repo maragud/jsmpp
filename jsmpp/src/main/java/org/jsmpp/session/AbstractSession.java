@@ -17,7 +17,7 @@ package org.jsmpp.session;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.jsmpp.InvalidResponseException;
@@ -53,6 +53,8 @@ public abstract class AbstractSession implements Session {
     private static final Random random = new Random();
 
     private final Map<Integer, PendingResponse<Command>> pendingResponse = new ConcurrentHashMap<Integer, PendingResponse<Command>>();
+	private final Map<Integer, CompletableFuture<Command>> pendingResponseAsync = new ConcurrentHashMap<>();
+	private static final ScheduledExecutorService scheduler = new ScheduledThreadPoolExecutor(1, new DaemonThreadFactory());
     private final Sequence sequence = new Sequence(1);
     private final PDUSender pduSender;
     private int pduProcessorDegree = 3;
@@ -82,6 +84,10 @@ public abstract class AbstractSession implements Session {
     protected PendingResponse<Command> removePendingResponse(int sequenceNumber) {
         return pendingResponse.remove(sequenceNumber);
     }
+
+	protected CompletableFuture<Command> removePendingResponseAsync(int sequenceNumber) {
+		return pendingResponseAsync.remove(sequenceNumber);
+	}
 
     public String getSessionId() {
         return sessionId;
@@ -306,6 +312,29 @@ public abstract class AbstractSession implements Session {
         return resp;
     }
 
+    protected CompletableFuture<Command> executeSendCommandAsync(SendCommandTask task, long timeout)
+		    throws PDUException, IOException {
+
+	    int seqNum = sequence.nextValue();
+	    CompletableFuture<Command> future = failAfter(timeout);
+	    pendingResponseAsync.put(seqNum, future);
+	    try {
+		    task.executeTask(connection().getOutputStream(), seqNum);
+	    } catch (IOException e) {
+		    logger.error("Failed sending {} command", task.getCommandName(), e);
+
+		    if("enquire_link".equals(task.getCommandName())) {
+			    logger.info("Ignore failure of sending enquire_link, wait to see if connection is restored");
+		    } else {
+			    pendingResponseAsync.remove(seqNum);
+			    close();
+			    throw e;
+		    }
+	    }
+
+	    return future;
+    }
+
     /**
      * Execute send command command task.
      *
@@ -499,4 +528,23 @@ public abstract class AbstractSession implements Session {
             }
         }
     }
+
+    public static <T> CompletableFuture<T> failAfter(long timeout) {
+    	final CompletableFuture<T> promise = new CompletableFuture<>();
+    	scheduler.schedule(() -> {
+    		final ResponseTimeoutException e = new ResponseTimeoutException("No response after " + timeout + " millis");
+    		return promise.completeExceptionally(e);
+	    }, timeout, TimeUnit.MILLISECONDS);
+
+    	return promise;
+    }
+	private static class DaemonThreadFactory implements ThreadFactory {
+		@Override
+		public Thread newThread(Runnable r) {
+			Thread t = new Thread(r);
+			t.setDaemon(true);
+			t.setName("CompletableFutureScheduler");
+			return t;
+		}
+	}
 }
