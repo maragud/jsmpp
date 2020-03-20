@@ -44,7 +44,6 @@ import org.jsmpp.bean.OptionalParameter.Sc_interface_version;
 import org.jsmpp.bean.Outbind;
 import org.jsmpp.bean.TypeOfNumber;
 import org.jsmpp.extra.NegativeResponseException;
-import org.jsmpp.extra.PendingResponse;
 import org.jsmpp.extra.ProcessRequestException;
 import org.jsmpp.extra.ResponseTimeoutException;
 import org.jsmpp.extra.SessionState;
@@ -322,9 +321,6 @@ public class SMPPOutboundServerSession extends AbstractSession implements Outbou
       }
     }
 
-    public PendingResponse<Command> removeSentItem(int sequenceNumber) {
-      return removePendingResponse(sequenceNumber);
-    }
 	  public CompletableFuture<Command> removeSentItemAsync(int sequenceNumber) {
 		  return removePendingResponseAsync(sequenceNumber);
 	  }

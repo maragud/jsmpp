@@ -49,12 +49,12 @@ abstract class AbstractGenericSMPPSessionBound implements GenericSMPPSessionStat
     }
 
     public void processEnquireLinkResp(Command pduHeader, byte[] pdu,
-            BaseResponseHandler responseHandler) throws IOException {
-        PendingResponse<Command> pendingResp = responseHandler
-                .removeSentItem(pduHeader.getSequenceNumber());
-        if (pendingResp != null) {
+            BaseResponseHandler responseHandler) {
+        CompletableFuture<Command> commandCompletableFuture = responseHandler
+                .removeSentItemAsync(pduHeader.getSequenceNumber());
+        if (commandCompletableFuture != null) {
             EnquireLinkResp resp = pduDecomposer.enquireLinkResp(pdu);
-            pendingResp.done(resp);
+            commandCompletableFuture.complete(resp);
         } else {
             logger.error("No request found for {}", pduHeader);
         }
@@ -71,12 +71,12 @@ abstract class AbstractGenericSMPPSessionBound implements GenericSMPPSessionStat
     }
 
     public void processUnbindResp(Command pduHeader, byte[] pdu,
-            BaseResponseHandler responseHandler) throws IOException {
-        PendingResponse<Command> pendingResp = responseHandler
-                .removeSentItem(pduHeader.getSequenceNumber());
-        if (pendingResp != null) {
+            BaseResponseHandler responseHandler) {
+        CompletableFuture<Command> commandCompletableFuture = responseHandler
+                .removeSentItemAsync(pduHeader.getSequenceNumber());
+        if (commandCompletableFuture != null) {
             UnbindResp resp = pduDecomposer.unbindResp(pdu);
-            pendingResp.done(resp);
+            commandCompletableFuture.complete(resp);
         } else {
             logger.error("No request found for {}", pduHeader);
         }
@@ -89,26 +89,17 @@ abstract class AbstractGenericSMPPSessionBound implements GenericSMPPSessionStat
     }
     
     public void processGenericNack(Command pduHeader, byte[] pdu,
-            BaseResponseHandler responseHandler) throws IOException {
-        PendingResponse<Command> pendingResp = responseHandler
-                .removeSentItem(pduHeader.getSequenceNumber());
-	    CompletableFuture<Command> future;
-        if (pendingResp != null) {
-            pendingResp.doneWithInvalidResponse(new GenericNackResponseException(
+            BaseResponseHandler responseHandler) {
+        CompletableFuture<Command> commandCompletableFuture = responseHandler
+                .removeSentItemAsync(pduHeader.getSequenceNumber());
+        if (commandCompletableFuture != null) {
+            commandCompletableFuture.completeExceptionally(new GenericNackResponseException(
                     "Receive generic_nack with command_status "
                             + pduHeader.getCommandStatusAsHex(), pduHeader.getCommandStatus()));
             logger.error("Receive generick_nack. "
                     + "command_status=" + pduHeader.getCommandStatusAsHex()
                     + ", sequence_number="
                     + IntUtil.toHexString(pduHeader.getSequenceNumber()));
-        } else if ((future = responseHandler.removeSentItemAsync(pduHeader.getSequenceNumber())) != null) {
-        	future.completeExceptionally(new GenericNackResponseException(
-			        "Receive generic_nack with command_status "
-					        + pduHeader.getCommandStatusAsHex(), pduHeader.getCommandStatus()));
-	        logger.error("Receive generick_nack. "
-			        + "command_status=" + pduHeader.getCommandStatusAsHex()
-			        + ", sequence_number="
-			        + IntUtil.toHexString(pduHeader.getSequenceNumber()));
         }
     }
     
@@ -128,13 +119,13 @@ abstract class AbstractGenericSMPPSessionBound implements GenericSMPPSessionStat
     
     public void processDataSmResp(Command pduHeader, byte[] pdu,
             BaseResponseHandler responseHandler) throws IOException {
-        PendingResponse<Command> pendingResp = responseHandler
-                .removeSentItem(pduHeader.getSequenceNumber());
+        CompletableFuture<Command> commandCompletableFuture = responseHandler
+                .removeSentItemAsync(pduHeader.getSequenceNumber());
         
-        if (pendingResp != null) {
+        if (commandCompletableFuture != null) {
             try {
                 DataSmResp resp = pduDecomposer.dataSmResp(pdu);
-                pendingResp.done(resp);
+                commandCompletableFuture.complete(resp);
             } catch (PDUStringException e) {
                 logger.error("Failed decomposing data_sm_resp", e);
                 responseHandler.sendGenerickNack(e.getErrorCode(), pduHeader

@@ -52,41 +52,28 @@ class SMPPSessionBoundTX extends SMPPSessionBound implements SMPPSessionState {
     public void processSubmitSmResp(Command pduHeader, byte[] pdu,
             ResponseHandler responseHandler) throws IOException {
 
-        PendingResponse<Command> pendingResp = responseHandler
-                .removeSentItem(pduHeader.getSequenceNumber());
-	    CompletableFuture<Command> future;
-        if (pendingResp != null) {
+        CompletableFuture<Command> commandCompletableFuture = responseHandler
+                .removeSentItemAsync(pduHeader.getSequenceNumber());
+        if (commandCompletableFuture != null) {
             try {
                 SubmitSmResp resp = pduDecomposer.submitSmResp(pdu);
-                pendingResp.done(resp);
+                commandCompletableFuture.complete(resp);
             } catch (PDUStringException e) {
                 logger.error("Failed decomposing submit_sm_resp", e);
                 responseHandler.sendGenerickNack(e.getErrorCode(), pduHeader
                         .getSequenceNumber());
             }
-        } else if ((future = responseHandler.removeSentItemAsync(pduHeader.getSequenceNumber())) != null) {
-	        try {
-		        SubmitSmResp resp = pduDecomposer.submitSmResp(pdu);
-		        future.complete(resp);
-	        } catch (PDUStringException e) {
-		        logger.error("Failed decomposing submit_sm_resp", e);
-		        responseHandler.sendGenerickNack(e.getErrorCode(), pduHeader
-				        .getSequenceNumber());
-	        }
-        } else {
-            logger.warn("No request with sequence_number "
-                    + pduHeader.getSequenceNumber() + " found");
         }
     }
     
     public void processSubmitMultiResp(Command pduHeader, byte[] pdu,
             ResponseHandler responseHandler) throws IOException {
-        PendingResponse<Command> pendingResp = responseHandler
-                .removeSentItem(pduHeader.getSequenceNumber());
-        if (pendingResp != null) {
+        CompletableFuture<Command> commandCompletableFuture = responseHandler
+                .removeSentItemAsync(pduHeader.getSequenceNumber());
+        if (commandCompletableFuture != null) {
             try {
                 SubmitMultiResp resp = pduDecomposer.submitMultiResp(pdu);
-                pendingResp.done(resp);
+                commandCompletableFuture.complete(resp);
             } catch (PDUStringException e) {
                 logger.error("Failed decomposing submit_multi_resp", e);
                 responseHandler.sendGenerickNack(e.getErrorCode(), pduHeader
@@ -101,12 +88,12 @@ class SMPPSessionBoundTX extends SMPPSessionBound implements SMPPSessionState {
     public void processQuerySmResp(Command pduHeader, byte[] pdu,
             ResponseHandler responseHandler) throws IOException {
 
-        PendingResponse<Command> pendingResp = responseHandler
-                .removeSentItem(pduHeader.getSequenceNumber());
-        if (pendingResp != null) {
+        CompletableFuture<Command> commandCompletableFuture = responseHandler
+                .removeSentItemAsync(pduHeader.getSequenceNumber());
+        if (commandCompletableFuture != null) {
             try {
                 QuerySmResp resp = pduDecomposer.querySmResp(pdu);
-                pendingResp.done(resp);
+                commandCompletableFuture.complete(resp);
             } catch (PDUStringException e) {
                 logger.error("Failed decomposing submit_sm_resp", e);
                 responseHandler.sendGenerickNack(e.getErrorCode(), pduHeader
@@ -122,12 +109,12 @@ class SMPPSessionBoundTX extends SMPPSessionBound implements SMPPSessionState {
     }
     
     public void processCancelSmResp(Command pduHeader, byte[] pdu,
-            ResponseHandler responseHandler) throws IOException {
-        PendingResponse<Command> pendingResp = responseHandler
-                .removeSentItem(pduHeader.getSequenceNumber());
-        if (pendingResp != null) {
+            ResponseHandler responseHandler) {
+        CompletableFuture<Command> commandCompletableFuture = responseHandler
+                .removeSentItemAsync(pduHeader.getSequenceNumber());
+        if (commandCompletableFuture != null) {
             CancelSmResp resp = pduDecomposer.cancelSmResp(pdu);
-            pendingResp.done(resp);
+            commandCompletableFuture.complete(resp);
         } else {
             logger.error(NO_REQUEST_FIND_FOR_SEQUENCE_NUMBER
                     + pduHeader.getSequenceNumber());
@@ -135,12 +122,12 @@ class SMPPSessionBoundTX extends SMPPSessionBound implements SMPPSessionState {
     }
     
     public void processReplaceSmResp(Command pduHeader, byte[] pdu,
-            ResponseHandler responseHandler) throws IOException {
-        PendingResponse<Command> pendingResp = responseHandler
-                .removeSentItem(pduHeader.getSequenceNumber());
-        if (pendingResp != null) {
+            ResponseHandler responseHandler) {
+        CompletableFuture<Command> commandCompletableFuture = responseHandler
+                .removeSentItemAsync(pduHeader.getSequenceNumber());
+        if (commandCompletableFuture != null) {
             ReplaceSmResp resp = pduDecomposer.replaceSmResp(pdu);
-            pendingResp.done(resp);
+            commandCompletableFuture.complete(resp);
         } else {
             logger.error(NO_REQUEST_FIND_FOR_SEQUENCE_NUMBER
                     + pduHeader.getSequenceNumber());

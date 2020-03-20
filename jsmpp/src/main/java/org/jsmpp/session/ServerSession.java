@@ -15,16 +15,12 @@
 package org.jsmpp.session;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 
 import org.jsmpp.InvalidResponseException;
 import org.jsmpp.PDUException;
 import org.jsmpp.PDUStringException;
-import org.jsmpp.bean.DataCoding;
-import org.jsmpp.bean.ESMClass;
-import org.jsmpp.bean.NumberingPlanIndicator;
-import org.jsmpp.bean.OptionalParameter;
-import org.jsmpp.bean.RegisteredDelivery;
-import org.jsmpp.bean.TypeOfNumber;
+import org.jsmpp.bean.*;
 import org.jsmpp.extra.NegativeResponseException;
 import org.jsmpp.extra.ResponseTimeoutException;
 
@@ -74,6 +70,16 @@ public interface ServerSession {
             OptionalParameter... optionalParameters) throws PDUException,
             ResponseTimeoutException, InvalidResponseException,
             NegativeResponseException, IOException;
+
+	CompletableFuture<DeliverSmResp> deliverShortMessageAsync(
+			String serviceType, TypeOfNumber sourceAddrTon,
+	        NumberingPlanIndicator sourceAddrNpi, String sourceAddr,
+	        TypeOfNumber destAddrTon, NumberingPlanIndicator destAddrNpi,
+	        String destinationAddr, ESMClass esmClass, byte protocoId,
+	        byte priorityFlag, RegisteredDelivery registeredDelivery,
+	        DataCoding dataCoding, byte[] shortMessage,
+	        OptionalParameter... optionalParameters) throws PDUException,
+			IOException;
 
     /**
      * Send alert notification to ESME in order to notify the particular mobile

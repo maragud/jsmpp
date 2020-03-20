@@ -40,7 +40,6 @@ public interface BaseResponseHandler {
      *         sequenceNumber. Return <tt>null</tt> if the the mapped
      *         sequenceNumber not found
      */
-    PendingResponse<Command> removeSentItem(int sequenceNumber);
 	CompletableFuture<Command> removeSentItemAsync(int sequenceNumber);
     
     /**

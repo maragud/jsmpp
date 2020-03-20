@@ -34,7 +34,6 @@ import org.jsmpp.bean.OptionalParameter;
 import org.jsmpp.bean.RegisteredDelivery;
 import org.jsmpp.bean.TypeOfNumber;
 import org.jsmpp.extra.NegativeResponseException;
-import org.jsmpp.extra.PendingResponse;
 import org.jsmpp.extra.ProcessRequestException;
 import org.jsmpp.extra.ResponseTimeoutException;
 import org.jsmpp.extra.SessionState;
@@ -52,7 +51,6 @@ public abstract class AbstractSession implements Session {
     private static final Logger logger = LoggerFactory.getLogger(AbstractSession.class);
     private static final Random random = new Random();
 
-    private final Map<Integer, PendingResponse<Command>> pendingResponse = new ConcurrentHashMap<Integer, PendingResponse<Command>>();
 	private final Map<Integer, CompletableFuture<Command>> pendingResponseAsync = new ConcurrentHashMap<>();
 	private static final ScheduledExecutorService scheduler = new ScheduledThreadPoolExecutor(1, new DaemonThreadFactory());
     private final Sequence sequence = new Sequence(1);
@@ -79,10 +77,6 @@ public abstract class AbstractSession implements Session {
 
     protected Sequence sequence() {
         return sequence;
-    }
-
-    protected PendingResponse<Command> removePendingResponse(int sequenceNumber) {
-        return pendingResponse.remove(sequenceNumber);
     }
 
 	protected CompletableFuture<Command> removePendingResponseAsync(int sequenceNumber) {
@@ -203,8 +197,28 @@ public abstract class AbstractSession implements Session {
 
         DataSmResp resp = (DataSmResp)executeSendCommand(task, getTransactionTimer());
 
-        return new DataSmResult(resp.getMessageId(), resp.getOptionalParameters());
+        return toDataSmResult(resp);
     }
+	public CompletableFuture<DataSmResult> dataShortMessageAsync(String serviceType,
+	        TypeOfNumber sourceAddrTon, NumberingPlanIndicator sourceAddrNpi,
+	        String sourceAddr, TypeOfNumber destAddrTon,
+	        NumberingPlanIndicator destAddrNpi, String destinationAddr,
+	        ESMClass esmClass, RegisteredDelivery registeredDelivery,
+	        DataCoding dataCoding, OptionalParameter... optionalParameters)
+			throws PDUException, IOException {
+
+
+		DataSmCommandTask task = new DataSmCommandTask(pduSender,
+				serviceType, sourceAddrTon, sourceAddrNpi, sourceAddr,
+				destAddrTon, destAddrNpi, destinationAddr, esmClass,
+				registeredDelivery, dataCoding, optionalParameters);
+
+		return executeSendCommandAsync(task, getTransactionTimer())
+				.thenApply(response -> toDataSmResult((DataSmResp) response));
+	}
+	public DataSmResult toDataSmResult(DataSmResp response) {
+		return new DataSmResult(response.getMessageId(), response.getOptionalParameters());
+	}
 
     public void close() {
         logger.debug("Close session {} in state {}", sessionId, getSessionState());
@@ -277,45 +291,40 @@ public abstract class AbstractSession implements Session {
             InvalidResponseException, NegativeResponseException, IOException {
 
         int seqNum = sequence.nextValue();
-        PendingResponse<Command> pendingResp = new PendingResponse<Command>(timeout);
-        pendingResponse.put(seqNum, pendingResp);
-        try {
-            task.executeTask(connection().getOutputStream(), seqNum);
-        } catch (IOException e) {
-            logger.error("Failed sending {} command", task.getCommandName(), e);
-
-            if("enquire_link".equals(task.getCommandName())) {
-                logger.info("Ignore failure of sending enquire_link, wait to see if connection is restored");
-            } else {
-                pendingResponse.remove(seqNum);
-                close();
-                throw e;
-            }
-        }
 
         try {
-            pendingResp.waitDone();
+        	CompletableFuture<Command> commandCompletableFuture = executeSendCommandAsync(task, timeout, seqNum);
+	        Command response = commandCompletableFuture.get(timeout, TimeUnit.MILLISECONDS);
+
             logger.debug("{} response with sequence_number {} received for session {}", task.getCommandName(), seqNum, sessionId);
-        } catch (ResponseTimeoutException e) {
-            pendingResponse.remove(seqNum);
+
+	        validateResponse(response);
+	        return response;
+        } catch (TimeoutException e) {
+	        pendingResponseAsync.remove(seqNum);
             throw new ResponseTimeoutException("No response after waiting for "
                     + timeout + " millis when executing "
                     + task.getCommandName() + " with session " + sessionId
                     + " and sequence_number " + seqNum, e);
-        } catch (InvalidResponseException e) {
-            pendingResponse.remove(seqNum);
-            throw e;
+        } catch (ExecutionException e) {
+	        pendingResponseAsync.remove(seqNum);
+        	throw new InvalidResponseException(e.getMessage(), e);
+        } catch (InterruptedException e) {
+	        pendingResponseAsync.remove(seqNum);
+	        throw new RuntimeException("Interrupted");
         }
-
-        Command resp = pendingResp.getResponse();
-        validateResponse(resp);
-        return resp;
     }
 
-    protected CompletableFuture<Command> executeSendCommandAsync(SendCommandTask task, long timeout)
+	protected CompletableFuture<Command> executeSendCommandAsync(SendCommandTask task, long timeout)
+			throws PDUException, IOException {
+
+		int seqNum = sequence.nextValue();
+		return executeSendCommandAsync(task, timeout, seqNum);
+	}
+
+    protected CompletableFuture<Command> executeSendCommandAsync(SendCommandTask task, long timeout, int seqNum)
 		    throws PDUException, IOException {
 
-	    int seqNum = sequence.nextValue();
 	    CompletableFuture<Command> future = failAfter(timeout);
 	    pendingResponseAsync.put(seqNum, future);
 	    try {

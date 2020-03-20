@@ -35,26 +35,8 @@ import org.jsmpp.PDUSender;
 import org.jsmpp.PDUStringException;
 import org.jsmpp.SMPPConstant;
 import org.jsmpp.SynchronizedPDUSender;
-import org.jsmpp.bean.Bind;
-import org.jsmpp.bean.BindType;
-import org.jsmpp.bean.CancelSm;
-import org.jsmpp.bean.Command;
-import org.jsmpp.bean.DataCoding;
-import org.jsmpp.bean.DataSm;
-import org.jsmpp.bean.ESMClass;
-import org.jsmpp.bean.InterfaceVersion;
-import org.jsmpp.bean.MessageState;
-import org.jsmpp.bean.NumberingPlanIndicator;
-import org.jsmpp.bean.OptionalParameter;
-import org.jsmpp.bean.QuerySm;
-import org.jsmpp.bean.RegisteredDelivery;
-import org.jsmpp.bean.ReplaceSm;
-import org.jsmpp.bean.SubmitMulti;
-import org.jsmpp.bean.SubmitMultiResult;
-import org.jsmpp.bean.SubmitSm;
-import org.jsmpp.bean.TypeOfNumber;
+import org.jsmpp.bean.*;
 import org.jsmpp.extra.NegativeResponseException;
-import org.jsmpp.extra.PendingResponse;
 import org.jsmpp.extra.ProcessRequestException;
 import org.jsmpp.extra.ResponseTimeoutException;
 import org.jsmpp.extra.SessionState;
@@ -172,6 +154,26 @@ public class SMPPServerSession extends AbstractSession implements ServerSession 
         
         executeSendCommand(task, getTransactionTimer());
     }
+	public CompletableFuture<DeliverSmResp> deliverShortMessageAsync(String serviceType,
+	        TypeOfNumber sourceAddrTon, NumberingPlanIndicator sourceAddrNpi,
+	        String sourceAddr, TypeOfNumber destAddrTon,
+	        NumberingPlanIndicator destAddrNpi, String destinationAddr,
+	        ESMClass esmClass, byte protocoId, byte priorityFlag,
+	        RegisteredDelivery registeredDelivery, DataCoding dataCoding,
+	        byte[] shortMessage, OptionalParameter... optionalParameters)
+			throws PDUException, IOException {
+
+		ensureReceivable("deliverShortMessage");
+
+		DeliverSmCommandTask task = new DeliverSmCommandTask(pduSender(),
+				serviceType, sourceAddrTon, sourceAddrNpi, sourceAddr,
+				destAddrTon, destAddrNpi, destinationAddr, esmClass, protocoId,
+				protocoId, registeredDelivery, dataCoding, shortMessage,
+				optionalParameters);
+
+		return executeSendCommandAsync(task, getTransactionTimer())
+				.thenApply(DeliverSmResp.class::cast);
+	}
     
     /* (non-Javadoc)
      * @see org.jsmpp.session.ServerSession#alertNotification(int, org.jsmpp.bean.TypeOfNumber, org.jsmpp.bean.NumberingPlanIndicator, java.lang.String, org.jsmpp.bean.TypeOfNumber, org.jsmpp.bean.NumberingPlanIndicator, java.lang.String, org.jsmpp.bean.OptionalParameter[])
@@ -296,9 +298,6 @@ public class SMPPServerSession extends AbstractSession implements ServerSession 
     }
     
     private class ResponseHandlerImpl implements ServerResponseHandler {
-        public PendingResponse<Command> removeSentItem(int sequenceNumber) {
-            return removePendingResponse(sequenceNumber);
-        }
 	    public CompletableFuture<Command> removeSentItemAsync(int sequenceNumber) {
 		    return removePendingResponseAsync(sequenceNumber);
 	    }
