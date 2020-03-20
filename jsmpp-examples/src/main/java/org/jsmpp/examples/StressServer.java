@@ -114,7 +114,7 @@ public class StressServer implements Runnable, ServerMessageReceiverListener {
     public MessageId onAcceptSubmitSm(SubmitSm submitSm,
             SMPPServerSession source) throws ProcessRequestException {
         MessageId messageId = messageIDGenerator.newMessageId();
-        LOGGER.info("Receiving submit_sm {}, and return message id {}", new String(submitSm.getShortMessage()), messageId.getValue());
+//        LOGGER.info("Receiving submit_sm {}, and return message id {}", new String(submitSm.getShortMessage()), messageId.getValue());
         requestCounter.incrementAndGet();
         return messageId;
     }

@@ -14,27 +14,17 @@
  */
 package org.jsmpp.examples;
 
-import java.io.IOException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-
 import org.apache.log4j.PropertyConfigurator;
-import org.jsmpp.InvalidResponseException;
 import org.jsmpp.PDUException;
-import org.jsmpp.bean.BindType;
-import org.jsmpp.bean.DataCodings;
-import org.jsmpp.bean.ESMClass;
-import org.jsmpp.bean.NumberingPlanIndicator;
-import org.jsmpp.bean.RegisteredDelivery;
-import org.jsmpp.bean.TypeOfNumber;
-import org.jsmpp.extra.NegativeResponseException;
-import org.jsmpp.extra.ResponseTimeoutException;
+import org.jsmpp.bean.*;
 import org.jsmpp.session.SMPPSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * This stress client is an example of submit bulk messages asynchronously.
@@ -56,8 +46,8 @@ import org.slf4j.LoggerFactory;
  * @author uudashr
  *
  */
-public class StressClient implements Runnable {
-    private static final Logger LOGGER = LoggerFactory.getLogger(StressClient.class);
+public class AsyncStressClient implements Runnable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(AsyncStressClient.class);
     private static final String DEFAULT_SYSID = "j";
     private static final String DEFAULT_PASSWORD = "jpwd";
     private static final String DEFAULT_SOURCEADDR = "1616";
@@ -68,14 +58,12 @@ public class StressClient implements Runnable {
     private static final Long DEFAULT_TRANSACTIONTIMER = 2000L;
     private static final Integer DEFAULT_BULK_SIZE = 5000000;
     private static final Integer DEFAULT_PROCESSOR_DEGREE = 3;
-    private static final Integer DEFAULT_MAX_OUTSTANDING = 10;
-    
+
     private AtomicInteger requestCounter = new AtomicInteger();
     private AtomicInteger totalRequestCounter = new AtomicInteger();
     private AtomicInteger responseCounter = new AtomicInteger();
     private AtomicInteger totalResponseCounter = new AtomicInteger();
     private AtomicLong maxDelay = new AtomicLong();
-    private ExecutorService execService;
     private String host;
     private int port;
     private int bulkSize;
@@ -87,10 +75,10 @@ public class StressClient implements Runnable {
     private String sourceAddr;
     private String destinationAddr;
 
-    public StressClient(int id, String host, int port, int bulkSize,
-            String systemId, String password, String sourceAddr,
-            String destinationAddr, long transactionTimer,
-            int pduProcessorDegree, int maxOutstanding) {
+    public AsyncStressClient(int id, String host, int port, int bulkSize,
+                             String systemId, String password, String sourceAddr,
+                             String destinationAddr, long transactionTimer,
+                             int pduProcessorDegree) {
         this.id = id;
         this.host = host;
         this.port = port;
@@ -101,11 +89,9 @@ public class StressClient implements Runnable {
         this.destinationAddr = destinationAddr;
         smppSession.setPduProcessorDegree(pduProcessorDegree);
         smppSession.setTransactionTimer(transactionTimer);
-        execService = Executors.newFixedThreadPool(maxOutstanding);
     }
 
     private void shutdown() {
-        execService.shutdown();
         exit.set(true);
     }
     
@@ -123,57 +109,35 @@ public class StressClient implements Runnable {
 
         LOGGER.info("Starting to send {} bulk messages", bulkSize);
         for (int i = 0; i < bulkSize && !exit.get(); i++) {
-            execService.execute(newSendTask("Hello " + id + " idx=" + i));
+	        String message = "Hello " + id + " idx=" + i;
+	        requestCounter.incrementAndGet();
+	        long startTime = System.currentTimeMillis();
+
+	        try {
+		        smppSession.submitShortMessageAsync(null, TypeOfNumber.UNKNOWN, NumberingPlanIndicator.UNKNOWN, sourceAddr,
+				        TypeOfNumber.UNKNOWN, NumberingPlanIndicator.UNKNOWN, destinationAddr,
+				        new ESMClass(), (byte)0, (byte)0,
+				        null, null, new RegisteredDelivery(0),
+				        (byte)0,
+				        DataCodings.ZERO,
+				        (byte)0, message.getBytes())
+				        .thenAcceptAsync(response -> {
+					        long delay = System.currentTimeMillis() - startTime;
+					        responseCounter.incrementAndGet();
+					        if (maxDelay.get() < delay) {
+						        maxDelay.set(delay);
+					        }
+				        });
+	        } catch (PDUException | IOException e) {
+		        LOGGER.error("Failed submit short message '" + message + "'", e);
+		        shutdown();
+	        }
         }
-        
-        while (!exit.get()) {
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-            }
-        }
+
         LOGGER.info("Done");
         smppSession.unbindAndClose();
     }
-    
-    private Runnable newSendTask(final String message) {
-        return new Runnable() {
-            public void run() {
-                try {
-                    requestCounter.incrementAndGet();
-                    long startTime = System.currentTimeMillis();
-                    smppSession.submitShortMessage(null, TypeOfNumber.UNKNOWN, NumberingPlanIndicator.UNKNOWN, sourceAddr, 
-                            TypeOfNumber.UNKNOWN, NumberingPlanIndicator.UNKNOWN, destinationAddr, 
-                            new ESMClass(), (byte)0, (byte)0, 
-                            null, null, new RegisteredDelivery(0), 
-                            (byte)0, 
-                            DataCodings.ZERO, 
-                            (byte)0, message.getBytes());
-                    long delay = System.currentTimeMillis() - startTime;
-                    responseCounter.incrementAndGet();
-                    if (maxDelay.get() < delay) {
-                        maxDelay.set(delay);
-                    }
-                } catch (PDUException e) {
-                    LOGGER.error("Failed submit short message '" + message + "'", e);
-                    shutdown();
-                } catch (ResponseTimeoutException e) {
-                    LOGGER.error("Failed submit short message '" + message + "'", e);
-                    shutdown();
-                } catch (InvalidResponseException e) {
-                    LOGGER.error("Failed submit short message '" + message + "'", e);
-                    shutdown();
-                } catch (NegativeResponseException e) {
-                    LOGGER.error("Failed submit short message '" + message + "'", e);
-                    shutdown();
-                } catch (IOException e) {
-                    LOGGER.error("Failed submit short message '" + message + "'", e);
-                    shutdown();
-                }
-            }
-        };
-    }
-    
+
     private class TrafficWatcherThread extends Thread {
         @Override
         public void run() {
@@ -234,13 +198,6 @@ public class StressClient implements Runnable {
         } catch (NumberFormatException e) {
             processorDegree = DEFAULT_PROCESSOR_DEGREE;
         }
-        
-        int maxOutstanding;
-        try {
-            maxOutstanding = Integer.parseInt(System.getProperty("jsmpp.client.maxOutstanding", DEFAULT_MAX_OUTSTANDING.toString()));
-        } catch (NumberFormatException e) {
-            maxOutstanding = DEFAULT_MAX_OUTSTANDING;
-        }
 
         LOGGER.info("Target server {}:{}", host, port);
         LOGGER.info("System ID: {}", systemId);
@@ -249,12 +206,11 @@ public class StressClient implements Runnable {
         LOGGER.info("Destination address: {}", destinationAddr);
         LOGGER.info("Transaction timer: {}", transactionTimer);
         LOGGER.info("Bulk size: {}", bulkSize);
-        LOGGER.info("Max outstanding: {}", maxOutstanding);
         LOGGER.info("Processor degree: {}", processorDegree);
         
-        StressClient stressClient = new StressClient(0, host, port, bulkSize,
+        AsyncStressClient stressClient = new AsyncStressClient(0, host, port, bulkSize,
                 systemId, password, sourceAddr, destinationAddr,
-                transactionTimer, processorDegree, maxOutstanding);
+                transactionTimer, processorDegree);
         stressClient.run();
     }
 }
