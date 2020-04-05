@@ -15,6 +15,7 @@
 package org.jsmpp.session;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 
 import org.jsmpp.InvalidResponseException;
 import org.jsmpp.PDUException;
@@ -90,6 +91,14 @@ public interface Session {
             OptionalParameter... optionalParameters) throws PDUException,
             ResponseTimeoutException, InvalidResponseException,
             NegativeResponseException, IOException;
+	CompletableFuture<DataSmResult> dataShortMessageAsync(
+			String serviceType, TypeOfNumber sourceAddrTon,
+	        NumberingPlanIndicator sourceAddrNpi, String sourceAddr,
+	        TypeOfNumber destAddrTon, NumberingPlanIndicator destAddrNpi,
+	        String destinationAddr, ESMClass esmClass,
+	        RegisteredDelivery registeredDelivery, DataCoding dataCoding,
+	        OptionalParameter... optionalParameters) throws PDUException,
+			IOException;
     
     /**
      * Get session id.

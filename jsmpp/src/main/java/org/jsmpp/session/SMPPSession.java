@@ -18,10 +18,7 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.SocketTimeoutException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 import org.jsmpp.DefaultPDUReader;
 import org.jsmpp.DefaultPDUSender;
@@ -33,28 +30,9 @@ import org.jsmpp.PDUSender;
 import org.jsmpp.PDUStringException;
 import org.jsmpp.SMPPConstant;
 import org.jsmpp.SynchronizedPDUSender;
-import org.jsmpp.bean.Address;
-import org.jsmpp.bean.AlertNotification;
-import org.jsmpp.bean.BindResp;
-import org.jsmpp.bean.BindType;
-import org.jsmpp.bean.Command;
-import org.jsmpp.bean.DataCoding;
-import org.jsmpp.bean.DataSm;
-import org.jsmpp.bean.DeliverSm;
-import org.jsmpp.bean.ESMClass;
-import org.jsmpp.bean.InterfaceVersion;
-import org.jsmpp.bean.NumberingPlanIndicator;
-import org.jsmpp.bean.OptionalParameter;
+import org.jsmpp.bean.*;
 import org.jsmpp.bean.OptionalParameter.Sc_interface_version;
-import org.jsmpp.bean.QuerySmResp;
-import org.jsmpp.bean.RegisteredDelivery;
-import org.jsmpp.bean.ReplaceIfPresentFlag;
-import org.jsmpp.bean.SubmitMultiResp;
-import org.jsmpp.bean.SubmitMultiResult;
-import org.jsmpp.bean.SubmitSmResp;
-import org.jsmpp.bean.TypeOfNumber;
 import org.jsmpp.extra.NegativeResponseException;
-import org.jsmpp.extra.PendingResponse;
 import org.jsmpp.extra.ProcessRequestException;
 import org.jsmpp.extra.ResponseTimeoutException;
 import org.jsmpp.extra.SessionState;
@@ -300,12 +278,30 @@ public class SMPPSession extends AbstractSession implements ClientSession {
                 addrNpi, addressRange);
 	    
 	    BindResp resp = (BindResp)executeSendCommand(task, timeout);
-	    OptionalParameter.Sc_interface_version scVersion = resp.getOptionalParameter(Sc_interface_version.class);
-	    if(scVersion != null) {
-		    logger.info("Other side reports SMPP interface version {}", scVersion);
-	    }
-        
+		logBindResponseVersion(resp);
+
 		return resp.getSystemId();
+	}
+	private CompletableFuture<BindResp> sendBindAsync(BindType bindType, String systemId,
+	        String password, String systemType,
+	        InterfaceVersion interfaceVersion, TypeOfNumber addrTon,
+	        NumberingPlanIndicator addrNpi, String addressRange, long timeout)
+			throws PDUException, IOException {
+
+		BindCommandTask task = new BindCommandTask(pduSender(), bindType,
+				systemId, password, systemType, interfaceVersion, addrTon,
+				addrNpi, addressRange);
+
+		return executeSendCommandAsync(task, timeout)
+				.thenApply(BindResp.class::cast)
+				.whenComplete((bindResp, throwable) -> logBindResponseVersion(bindResp));
+	}
+	private void logBindResponseVersion(BindResp bindResponse) {
+		OptionalParameter.Sc_interface_version scVersion = bindResponse.getOptionalParameter(Sc_interface_version.class);
+
+		if (scVersion != null) {
+			logger.info("Other side reports SMPP interface version {}", scVersion);
+		}
 	}
     /* (non-Javadoc)
      * @see org.jsmpp.session.ClientSession#submitShortMessage(java.lang.String, org.jsmpp.bean.TypeOfNumber, org.jsmpp.bean.NumberingPlanIndicator, java.lang.String, org.jsmpp.bean.TypeOfNumber, org.jsmpp.bean.NumberingPlanIndicator, java.lang.String, org.jsmpp.bean.ESMClass, byte, byte, java.lang.String, java.lang.String, org.jsmpp.bean.RegisteredDelivery, byte, org.jsmpp.bean.DataCoding, byte, byte[], org.jsmpp.bean.OptionalParameter[])
@@ -334,6 +330,28 @@ public class SMPPSession extends AbstractSession implements ClientSession {
         SubmitSmResp resp = (SubmitSmResp)executeSendCommand(submitSmTask, getTransactionTimer());
     	return resp.getMessageId();
     }
+	public CompletableFuture<SubmitSmResp> submitShortMessageAsync(String serviceType,
+            TypeOfNumber sourceAddrTon, NumberingPlanIndicator sourceAddrNpi,
+            String sourceAddr, TypeOfNumber destAddrTon,
+            NumberingPlanIndicator destAddrNpi, String destinationAddr,
+            ESMClass esmClass, byte protocolId, byte priorityFlag,
+            String scheduleDeliveryTime, String validityPeriod,
+            RegisteredDelivery registeredDelivery, byte replaceIfPresentFlag,
+            DataCoding dataCoding, byte smDefaultMsgId, byte[] shortMessage,
+            OptionalParameter... optionalParameters) throws PDUException, IOException {
+
+		ensureTransmittable("submitShortMessage");
+
+		SubmitSmCommandTask submitSmTask = new SubmitSmCommandTask(
+				pduSender(), serviceType, sourceAddrTon, sourceAddrNpi,
+				sourceAddr, destAddrTon, destAddrNpi, destinationAddr,
+				esmClass, protocolId, priorityFlag, scheduleDeliveryTime,
+				validityPeriod, registeredDelivery, replaceIfPresentFlag,
+				dataCoding, smDefaultMsgId, shortMessage, optionalParameters);
+
+		return executeSendCommandAsync(submitSmTask, getTransactionTimer())
+			.thenApply(SubmitSmResp.class::cast);
+	}
     
     /* (non-Javadoc)
      * @see org.jsmpp.session.ClientSession#submitMultiple(java.lang.String, org.jsmpp.bean.TypeOfNumber, org.jsmpp.bean.NumberingPlanIndicator, java.lang.String, org.jsmpp.bean.Address[], org.jsmpp.bean.ESMClass, byte, byte, java.lang.String, java.lang.String, org.jsmpp.bean.RegisteredDelivery, org.jsmpp.bean.ReplaceIfPresentFlag, org.jsmpp.bean.DataCoding, byte, byte[], org.jsmpp.bean.OptionalParameter[])
@@ -362,9 +380,34 @@ public class SMPPSession extends AbstractSession implements ClientSession {
         SubmitMultiResp resp = (SubmitMultiResp)executeSendCommand(task,
                 getTransactionTimer());
 
-        return new SubmitMultiResult(resp.getMessageId(), resp
-                .getUnsuccessSmes());
+        return toSubmitMultiResult(resp);
     }
+	public CompletableFuture<SubmitMultiResult> submitMultipleAsync(String serviceType,
+	        TypeOfNumber sourceAddrTon, NumberingPlanIndicator sourceAddrNpi,
+	        String sourceAddr, Address[] destinationAddresses,
+	        ESMClass esmClass, byte protocolId, byte priorityFlag,
+	        String scheduleDeliveryTime, String validityPeriod,
+	        RegisteredDelivery registeredDelivery,
+	        ReplaceIfPresentFlag replaceIfPresentFlag, DataCoding dataCoding,
+	        byte smDefaultMsgId, byte[] shortMessage,
+	        OptionalParameter... optionalParameters) throws PDUException,
+			IOException {
+
+		ensureTransmittable("submitMultiple");
+
+		SubmitMultiCommandTask task = new SubmitMultiCommandTask(pduSender(),
+				serviceType, sourceAddrTon, sourceAddrNpi, sourceAddr,
+				destinationAddresses, esmClass, protocolId, priorityFlag,
+				scheduleDeliveryTime, validityPeriod, registeredDelivery,
+				replaceIfPresentFlag, dataCoding, smDefaultMsgId, shortMessage,
+				optionalParameters);
+
+		return executeSendCommandAsync(task, getTransactionTimer())
+				.thenApply(response -> toSubmitMultiResult((SubmitMultiResp) response));
+	}
+	private SubmitMultiResult toSubmitMultiResult(SubmitMultiResp response) {
+		return new SubmitMultiResult(response.getMessageId(), response.getUnsuccessSmes());
+	}
     
     /* (non-Javadoc)
      * @see org.jsmpp.session.ClientSession#queryShortMessage(java.lang.String, org.jsmpp.bean.TypeOfNumber, org.jsmpp.bean.NumberingPlanIndicator, java.lang.String)
@@ -373,12 +416,12 @@ public class SMPPSession extends AbstractSession implements ClientSession {
             TypeOfNumber sourceAddrTon, NumberingPlanIndicator sourceAddrNpi,
             String sourceAddr) throws PDUException, ResponseTimeoutException,
             InvalidResponseException, NegativeResponseException, IOException {
-        
+
         ensureTransmittable("queryShortMessage");
-        
+
         QuerySmCommandTask task = new QuerySmCommandTask(pduSender(),
                 messageId, sourceAddrTon, sourceAddrNpi, sourceAddr);
-        
+
         QuerySmResp resp = (QuerySmResp)executeSendCommand(task,
                 getTransactionTimer());
 
@@ -391,8 +434,36 @@ public class SMPPSession extends AbstractSession implements ClientSession {
                     "Requested message_id doesn't match with the result");
         }
     }
-    
-    /* (non-Javadoc)
+	public CompletableFuture<QuerySmResult> queryShortMessageAsync(String messageId,
+	        TypeOfNumber sourceAddrTon, NumberingPlanIndicator sourceAddrNpi,
+	        String sourceAddr) throws PDUException, IOException {
+
+		ensureTransmittable("queryShortMessage");
+
+		QuerySmCommandTask task = new QuerySmCommandTask(pduSender(),
+				messageId, sourceAddrTon, sourceAddrNpi, sourceAddr);
+
+		return executeSendCommandAsync(task, getTransactionTimer())
+				.thenCompose(response -> toQuerySmResult((QuerySmResp) response, messageId));
+	}
+	private CompletableFuture<QuerySmResult> toQuerySmResult(QuerySmResp response, String messageId) {
+
+		QuerySmResult querySmResult = new QuerySmResult(response.getFinalDate(), response
+				.getMessageState(), response.getErrorCode());
+
+		if (response.getMessageId().equals(messageId)) {
+			return CompletableFuture.completedFuture(querySmResult);
+		} else {
+			// message id requested not same as the returned
+			CompletableFuture<QuerySmResult> result = CompletableFuture.supplyAsync(() -> querySmResult);
+			result.completeExceptionally(new InvalidResponseException(
+					"Requested message_id doesn't match with the result"));
+
+			return result;
+		}
+	}
+
+	/* (non-Javadoc)
      * @see org.jsmpp.session.ClientSession#replaceShortMessage(java.lang.String, org.jsmpp.bean.TypeOfNumber, org.jsmpp.bean.NumberingPlanIndicator, java.lang.String, java.lang.String, java.lang.String, org.jsmpp.bean.RegisteredDelivery, byte, byte[])
      */
     public void replaceShortMessage(String messageId,
@@ -412,6 +483,23 @@ public class SMPPSession extends AbstractSession implements ClientSession {
 
         executeSendCommand(replaceSmTask, getTransactionTimer());
     }
+	public CompletableFuture<ReplaceSmResp> replaceShortMessageAsync(String messageId,
+	        TypeOfNumber sourceAddrTon, NumberingPlanIndicator sourceAddrNpi,
+	        String sourceAddr, String scheduleDeliveryTime,
+	        String validityPeriod, RegisteredDelivery registeredDelivery,
+	        byte smDefaultMsgId, byte[] shortMessage) throws PDUException,
+			IOException {
+
+		ensureTransmittable("replaceShortMessage");
+
+		ReplaceSmCommandTask replaceSmTask = new ReplaceSmCommandTask(
+				pduSender(), messageId, sourceAddrTon, sourceAddrNpi,
+				sourceAddr, scheduleDeliveryTime, validityPeriod,
+				registeredDelivery, smDefaultMsgId, shortMessage);
+
+		return executeSendCommandAsync(replaceSmTask, getTransactionTimer())
+				.thenApply(ReplaceSmResp.class::cast);
+	}
     
     /* (non-Javadoc)
      * @see org.jsmpp.session.ClientSession#cancelShortMessage(java.lang.String, java.lang.String, org.jsmpp.bean.TypeOfNumber, org.jsmpp.bean.NumberingPlanIndicator, java.lang.String, org.jsmpp.bean.TypeOfNumber, org.jsmpp.bean.NumberingPlanIndicator, java.lang.String)
@@ -431,6 +519,21 @@ public class SMPPSession extends AbstractSession implements ClientSession {
         
         executeSendCommand(task, getTransactionTimer());
     }
+	public CompletableFuture<CancelSmResp> cancelShortMessageAsync(String serviceType, String messageId,
+	        TypeOfNumber sourceAddrTon, NumberingPlanIndicator sourceAddrNpi,
+	        String sourceAddr, TypeOfNumber destAddrTon,
+	        NumberingPlanIndicator destAddrNpi, String destinationAddress)
+			throws PDUException, IOException {
+
+		ensureTransmittable("cancelShortMessage");
+
+		CancelSmCommandTask task = new CancelSmCommandTask(pduSender(),
+				serviceType, messageId, sourceAddrTon, sourceAddrNpi,
+				sourceAddr, destAddrTon, destAddrNpi, destinationAddress);
+
+		return executeSendCommandAsync(task, getTransactionTimer())
+				.thenApply(CancelSmResp.class::cast);
+	}
     
     public MessageReceiverListener getMessageReceiverListener() {
         return messageReceiverListener;
@@ -528,9 +631,9 @@ public class SMPPSession extends AbstractSession implements ClientSession {
 						logger.error("SYSTEM ERROR. Failed sending dataSmResp", e);
 				}
 		}
-		
-		public PendingResponse<Command> removeSentItem(int sequenceNumber) {
-			return removePendingResponse(sequenceNumber);
+
+		public CompletableFuture<Command> removeSentItemAsync(int sequenceNumber) {
+			return removePendingResponseAsync(sequenceNumber);
 		}
 		
 		public void notifyUnbonded() {

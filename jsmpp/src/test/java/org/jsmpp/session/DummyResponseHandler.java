@@ -15,6 +15,7 @@
 package org.jsmpp.session;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 
 import org.jsmpp.bean.Bind;
 import org.jsmpp.bean.BindType;
@@ -28,7 +29,6 @@ import org.jsmpp.bean.ReplaceSm;
 import org.jsmpp.bean.SubmitMulti;
 import org.jsmpp.bean.SubmitMultiResult;
 import org.jsmpp.bean.SubmitSm;
-import org.jsmpp.extra.PendingResponse;
 import org.jsmpp.extra.ProcessRequestException;
 import org.jsmpp.util.MessageId;
 
@@ -42,7 +42,7 @@ class DummyResponseHandler implements ServerResponseHandler {
     public void notifyUnbonded() {
     }
 
-    public PendingResponse<Command> removeSentItem(int sequenceNumber) {
+    public CompletableFuture<Command> removeSentItemAsync(int sequenceNumber) {
         return null;
     }
 

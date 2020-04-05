@@ -15,19 +15,11 @@
 package org.jsmpp.session;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 
 import org.jsmpp.InvalidResponseException;
 import org.jsmpp.PDUException;
-import org.jsmpp.bean.Address;
-import org.jsmpp.bean.BindType;
-import org.jsmpp.bean.DataCoding;
-import org.jsmpp.bean.ESMClass;
-import org.jsmpp.bean.NumberingPlanIndicator;
-import org.jsmpp.bean.OptionalParameter;
-import org.jsmpp.bean.RegisteredDelivery;
-import org.jsmpp.bean.ReplaceIfPresentFlag;
-import org.jsmpp.bean.SubmitMultiResult;
-import org.jsmpp.bean.TypeOfNumber;
+import org.jsmpp.bean.*;
 import org.jsmpp.extra.NegativeResponseException;
 import org.jsmpp.extra.ResponseTimeoutException;
 
@@ -85,6 +77,17 @@ public interface ClientSession extends Session {
             OptionalParameter... optionalParameters) throws PDUException,
             ResponseTimeoutException, InvalidResponseException,
             NegativeResponseException, IOException;
+	CompletableFuture<SubmitSmResp> submitShortMessageAsync(
+			String serviceType, TypeOfNumber sourceAddrTon,
+	        NumberingPlanIndicator sourceAddrNpi, String sourceAddr,
+	        TypeOfNumber destAddrTon, NumberingPlanIndicator destAddrNpi,
+	        String destinationAddr, ESMClass esmClass, byte protocolId,
+	        byte priorityFlag, String scheduleDeliveryTime,
+	        String validityPeriod, RegisteredDelivery registeredDelivery,
+	        byte replaceIfPresentFlag, DataCoding dataCoding,
+	        byte smDefaultMsgId, byte[] shortMessage,
+	        OptionalParameter... optionalParameters) throws PDUException,
+			IOException;
 
     /**
      * Submit short message to multiple destination address. It's similar to
@@ -127,6 +130,16 @@ public interface ClientSession extends Session {
             OptionalParameter... optionalParameters) throws PDUException,
             ResponseTimeoutException, InvalidResponseException,
             NegativeResponseException, IOException;
+	CompletableFuture<SubmitMultiResult> submitMultipleAsync(String serviceType,
+	        TypeOfNumber sourceAddrTon, NumberingPlanIndicator sourceAddrNpi,
+	        String sourceAddr, Address[] destinationAddresses,
+	        ESMClass esmClass, byte protocolId, byte priorityFlag,
+	        String scheduleDeliveryTime, String validityPeriod,
+	        RegisteredDelivery registeredDelivery,
+	        ReplaceIfPresentFlag replaceIfPresentFlag, DataCoding dataCoding,
+	        byte smDefaultMsgId, byte[] shortMessage,
+	        OptionalParameter... optionalParameters) throws PDUException,
+			IOException;
     
     /**
      * Query previous submitted short message based on it's message_id and
@@ -149,6 +162,9 @@ public interface ClientSession extends Session {
             TypeOfNumber sourceAddrTon, NumberingPlanIndicator sourceAddrNpi,
             String sourceAddr) throws PDUException, ResponseTimeoutException,
             InvalidResponseException, NegativeResponseException, IOException;
+	CompletableFuture<QuerySmResult> queryShortMessageAsync(String messageId,
+	        TypeOfNumber sourceAddrTon, NumberingPlanIndicator sourceAddrNpi,
+	        String sourceAddr) throws PDUException, IOException;
 
     /**
      * Cancel the previous submitted short message. This method will blocks
@@ -175,6 +191,11 @@ public interface ClientSession extends Session {
             NumberingPlanIndicator destAddrNpi, String destinationAddress)
             throws PDUException, ResponseTimeoutException,
             InvalidResponseException, NegativeResponseException, IOException;
+	CompletableFuture<CancelSmResp> cancelShortMessageAsync(String serviceType, String messageId,
+	        TypeOfNumber sourceAddrTon, NumberingPlanIndicator sourceAddrNpi,
+	        String sourceAddr, TypeOfNumber destAddrTon,
+	        NumberingPlanIndicator destAddrNpi, String destinationAddress)
+			throws PDUException, IOException;
 
     /**
      * Replace the previous submitted short message. This method will blocks
@@ -202,6 +223,11 @@ public interface ClientSession extends Session {
             RegisteredDelivery registeredDelivery, byte smDefaultMsgId,
             byte[] shortMessage) throws PDUException, ResponseTimeoutException,
             InvalidResponseException, NegativeResponseException, IOException;
+	CompletableFuture<ReplaceSmResp> replaceShortMessageAsync(String messageId, TypeOfNumber sourceAddrTon,
+	        NumberingPlanIndicator sourceAddrNpi, String sourceAddr,
+	        String scheduleDeliveryTime, String validityPeriod,
+	        RegisteredDelivery registeredDelivery, byte smDefaultMsgId,
+	        byte[] shortMessage) throws PDUException, IOException;
     
     /**
      * Open connection and bind immediately. The default

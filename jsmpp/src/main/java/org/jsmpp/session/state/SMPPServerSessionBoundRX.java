@@ -15,6 +15,7 @@
 package org.jsmpp.session.state;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 
 import org.jsmpp.SMPPConstant;
 import org.jsmpp.bean.Command;
@@ -78,11 +79,11 @@ class SMPPServerSessionBoundRX extends SMPPServerSessionBound implements
     }
     
     static final void processDeliverSmResp0(Command pduHeader, byte[] pdu,
-            ServerResponseHandler responseHandler) throws IOException {
-        PendingResponse<Command> pendingResp = responseHandler.removeSentItem(pduHeader.getSequenceNumber());
-        if (pendingResp != null) {
+            ServerResponseHandler responseHandler) {
+        CompletableFuture<Command> commandCompletableFuture = responseHandler.removeSentItemAsync(pduHeader.getSequenceNumber());
+        if (commandCompletableFuture != null) {
             DeliverSmResp resp = pduDecomposer.deliverSmResp(pdu);
-            pendingResp.done(resp);
+            commandCompletableFuture.complete(resp);
         } else {
             logger.warn("No request with sequence_number {} found", pduHeader.getSequenceNumber());
         }

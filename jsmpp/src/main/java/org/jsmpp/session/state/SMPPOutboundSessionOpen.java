@@ -15,6 +15,7 @@
 package org.jsmpp.session.state;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 
 import org.jsmpp.InvalidResponseException;
 import org.jsmpp.PDUStringException;
@@ -62,81 +63,81 @@ class SMPPOutboundSessionOpen implements SMPPOutboundSessionState {
   }
 
   public void processEnquireLink(Command pduHeader, byte[] pdu,
-                                 BaseResponseHandler responseHandler) throws IOException {
-    PendingResponse<Command> pendingResp = responseHandler
-        .removeSentItem(pduHeader.getSequenceNumber());
-    if (pendingResp != null) {
-      pendingResp.doneWithInvalidResponse(new InvalidResponseException(
+                                 BaseResponseHandler responseHandler) {
+    CompletableFuture<Command> commandCompletableFuture = responseHandler
+        .removeSentItemAsync(pduHeader.getSequenceNumber());
+    if (commandCompletableFuture != null) {
+      commandCompletableFuture.completeExceptionally(new InvalidResponseException(
           "Receive unexpected enquire_link"));
     }
   }
 
   public void processEnquireLinkResp(Command pduHeader, byte[] pdu,
-                                     BaseResponseHandler responseHandler) throws IOException {
-    PendingResponse<Command> pendingResp = responseHandler
-        .removeSentItem(1);
-    if (pendingResp != null) {
-      pendingResp.doneWithInvalidResponse(new InvalidResponseException(
+                                     BaseResponseHandler responseHandler) {
+    CompletableFuture<Command> commandCompletableFuture = responseHandler
+        .removeSentItemAsync(1);
+    if (commandCompletableFuture != null) {
+      commandCompletableFuture.completeExceptionally(new InvalidResponseException(
           "Receive unexpected enquire_link_resp"));
     }
   }
 
   public void processGenericNack(Command pduHeader, byte[] pdu,
                                  BaseResponseHandler responseHandler) {
-    PendingResponse<Command> pendingResp = responseHandler
-        .removeSentItem(1);
-    if (pendingResp != null) {
-      pendingResp.doneWithInvalidResponse(new InvalidResponseException(
+    CompletableFuture<Command> commandCompletableFuture = responseHandler
+        .removeSentItemAsync(1);
+    if (commandCompletableFuture != null) {
+      commandCompletableFuture.completeExceptionally(new InvalidResponseException(
           "Receive unexpected generic_nack"));
     }
   }
 
   public void processUnbind(Command pduHeader, byte[] pdu,
-                            BaseResponseHandler responseHandler) throws IOException {
-    PendingResponse<Command> pendingResp = responseHandler
-        .removeSentItem(1);
-    if (pendingResp != null) {
-      pendingResp.doneWithInvalidResponse(new InvalidResponseException(
+                            BaseResponseHandler responseHandler) {
+    CompletableFuture<Command> commandCompletableFuture = responseHandler
+        .removeSentItemAsync(1);
+    if (commandCompletableFuture != null) {
+      commandCompletableFuture.completeExceptionally(new InvalidResponseException(
           "Receive unexpected unbind"));
     }
   }
 
   public void processUnbindResp(Command pduHeader, byte[] pdu,
-                                BaseResponseHandler responseHandler) throws IOException {
-    PendingResponse<Command> pendingResp = responseHandler
-        .removeSentItem(1);
-    if (pendingResp != null) {
-      pendingResp.doneWithInvalidResponse(new InvalidResponseException(
+                                BaseResponseHandler responseHandler) {
+    CompletableFuture<Command> commandCompletableFuture = responseHandler
+        .removeSentItemAsync(1);
+    if (commandCompletableFuture != null) {
+      commandCompletableFuture.completeExceptionally(new InvalidResponseException(
           "Receive unexpected unbind_resp"));
     }
   }
 
   public void processUnknownCid(Command pduHeader, byte[] pdu,
-                                BaseResponseHandler responseHandler) throws IOException {
-    PendingResponse<Command> pendingResp = responseHandler
-        .removeSentItem(1);
-    if (pendingResp != null) {
-      pendingResp.doneWithInvalidResponse(new InvalidResponseException(
+                                BaseResponseHandler responseHandler) {
+    CompletableFuture<Command> commandCompletableFuture = responseHandler
+        .removeSentItemAsync(1);
+    if (commandCompletableFuture != null) {
+      commandCompletableFuture.completeExceptionally(new InvalidResponseException(
           "Receive unknown command_id"));
     }
   }
 
   public void processDataSm(Command pduHeader, byte[] pdu,
-                            BaseResponseHandler responseHandler) throws IOException {
-    PendingResponse<Command> pendingResp = responseHandler
-        .removeSentItem(1);
-    if (pendingResp != null) {
-      pendingResp.doneWithInvalidResponse(new InvalidResponseException(
+                            BaseResponseHandler responseHandler) {
+    CompletableFuture<Command> commandCompletableFuture = responseHandler
+        .removeSentItemAsync(1);
+    if (commandCompletableFuture != null) {
+      commandCompletableFuture.completeExceptionally(new InvalidResponseException(
           "Receive unexpected data_sm"));
     }
   }
 
   public void processDataSmResp(Command pduHeader, byte[] pdu,
-                                BaseResponseHandler responseHandler) throws IOException {
-    PendingResponse<Command> pendingResp = responseHandler
-        .removeSentItem(1);
-    if (pendingResp != null) {
-      pendingResp.doneWithInvalidResponse(new InvalidResponseException(
+                                BaseResponseHandler responseHandler) {
+    CompletableFuture<Command> commandCompletableFuture = responseHandler
+        .removeSentItemAsync(1);
+    if (commandCompletableFuture != null) {
+      commandCompletableFuture.completeExceptionally(new InvalidResponseException(
           "Receive unexpected data_sm_resp"));
     }
   }
